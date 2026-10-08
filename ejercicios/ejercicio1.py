@@ -48,7 +48,11 @@ if __name__=="__main__":
     resultado = grafo.invoke({"message": texto})
     print("ENTRADA: ", texto)
     print("SALIDA: ", resultado["message"][-1].content)
-    print(resultado["message"])
+    print()
+    texto = "¿Cuántos días tengo de vacaciones?"
+    resultado = grafo.invoke({"message": texto})
+    print("ENTRADA: ", texto)
+    print("SALIDA: ", resultado["message"][-1].content)
     png = grafo.get_graph().draw_mermaid_png(max_retries=5, retry_delay=2.0)
     with open("capturas/grafo_ejercicio1.png", "wb") as f:
         f.write(png)

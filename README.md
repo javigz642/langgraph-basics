@@ -22,7 +22,7 @@ langgraph-basics/
 │   ├── ejercicio1.py                          # mi solucion al Ejercicio 1
 │   └── ejercicio2.py                          # mi solucion al Ejercicio 2
 ├── soluciones/                                # solucion de referencia del Ejercicio 1
-├── capturas/                                  # diagramas generados por mis ejercicios
+├── capturas/                                  # grafos y ejecuciones de mis ejercicios
 ├── datos.csv                                  # datos para la tool del Ejercicio 2
 ├── PROMPTS.md                                 # prompts usados en la practica
 └── requirements.txt
@@ -56,31 +56,29 @@ Ejecuta cada uno con `python <archivo>`.
 ### Ejercicio 1 · Un grafo que clasifica y responde
 **Enunciado:** clasifica un mensaje como pregunta o queja y una arista condicional lo manda a un nodo de respuesta u otro.
 
-**Mi solucion:** `python ejercicios/ejercicio1.py` · diagrama en `capturas/grafo_ejercicio1.png`
-
-```
-START -> bot_clasificador --(decidir_siguiente)--> pregunta -> END
-                                               \-> queja    -> END
-```
+**Mi solucion:** `python ejercicios/ejercicio1.py`
 
 - `bot_clasificador` (nodo): el LLM clasifica el mensaje y guarda la etiqueta ya limpia (`strip().lower()`) en `tipo_pregunta`.
 - `decidir_siguiente` (funcion de la arista condicional, no es un nodo): lee `tipo_pregunta` y devuelve el nombre del siguiente nodo.
 - `pregunta` / `queja` (nodos): responden con un `AIMessage` distinto segun la rama.
 - El State usa `add_messages` para guardar la conversacion como lista de mensajes.
 
+**Grafo** · las lineas discontinuas son la arista condicional que sale de `bot_clasificador`:
+
+![Grafo del Ejercicio 1](capturas/grafo_ejercicio1.png)
+
+**Ejecucion** · un mensaje de cada tipo, y cada uno sale por su rama:
+
+![Ejecucion del Ejercicio 1](capturas/ejecucion_ejercicio1.png)
+
 Solucion de referencia: `soluciones/ejercicio1_clasificador.py`.
 
 ### Ejercicio 2 · El grafo por fases, con una tool propia
 **Enunciado:** grafo simple -> chatbot -> memoria -> herramientas, con tu propia tool, y una conversacion multi-turno que la use.
 
-**Mi solucion:** `python ejercicios/ejercicio2.py` · diagrama en `capturas/grafo_ejercicio2.png`
+**Mi solucion:** `python ejercicios/ejercicio2.py`
 
 Agente de proyectos que consulta un registro de horas (`datos.csv`: fecha, proyecto, empleado, rol, tarea, horas, facturable).
-
-```
-START -> chatbot --(tools_condition)--> tools -> chatbot  (ciclo)
-                                    \-> END
-```
 
 - **Tool `informacion_trabajador(empleado)`**: filtra el CSV con pandas y devuelve horas totales, facturables, no facturables y desglose por proyecto. Si el empleado no existe, devuelve un `error` con la lista de empleados validos para que el modelo pueda corregirse.
 - **Memoria**: `MemorySaver` + `thread_id`.
@@ -88,9 +86,23 @@ START -> chatbot --(tools_condition)--> tools -> chatbot  (ciclo)
   - `cliente1`: el usuario dice su nombre, pregunta por otra empleada y despues se compara con un tercero. El turno 3 solo funciona si el modelo recuerda quien es "yo" (memoria + tool juntas).
   - `cliente2`: pregunta por un empleado que no existe (caso de error) y comprueba que este hilo no comparte memoria con `cliente1`.
 
+**Grafo** · el ciclo `chatbot -> tools -> chatbot`; `tools_condition` decide si ir a `tools` o terminar:
+
+![Grafo del Ejercicio 2](capturas/grafo_ejercicio2.png)
+
+**Ejecucion:**
+
+![Ejecucion del Ejercicio 2](capturas/ejecucion_ejercicio2.png)
+
+Que se ve en la ejecucion:
+- **Turnos 1 y 2**: el modelo llama a la tool con el empleado correcto y redacta la respuesta con las cifras que devuelve pandas.
+- **Turno 3** ("¿He trabajado mas que Diego?"): el modelo recuerda que el usuario es Javier y pide **dos llamadas a la tool en paralelo**, una para Javier y otra para Diego. La funcion `conversar` solo imprime la primera llamada (`tool_calls[0]`) y el ultimo resultado (`messages[-1]`), por eso en pantalla aparece la llamada de Javier junto al resultado de Diego. La conclusion (70 h > 68 h) es correcta.
+- **Turno 4** (`cliente2`, "Sergio"): la tool devuelve el `error` con los empleados validos y el modelo se lo explica al usuario.
+- **Turno 5** (`cliente2`, "¿Sabes como me llamo?"): el modelo no sabe el nombre porque `cliente2` no comparte memoria con `cliente1`. Aun asi, llama a la tool con `'tú'` sin necesidad: es un fallo de criterio del modelo, y la tool lo gestiona devolviendo el error.
+
 **Observaciones:**
 - Los calculos los hace pandas dentro de la tool; el LLM solo redacta la respuesta.
-- llama3.1 (8B) lee bien las cifras, pero a veces se equivoca al compararlas (por ejemplo, dice que 70 es mayor que 76,5). Para comparaciones fiables habria que hacerlas en una tool.
+- llama3.1 (8B) lee bien las cifras, pero a veces se equivoca al compararlas (en otra ejecucion dijo que 70 era mayor que 76,5). Para comparaciones fiables habria que hacerlas en una tool.
 
 ## Notas
 - La primera llamada tarda mas: Ollama carga el modelo en memoria.
